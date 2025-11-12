@@ -126,7 +126,7 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
-
+  p->trace_mask = 0;
   return p;
 }
 
@@ -266,7 +266,7 @@ fork(void)
   if((np = allocproc()) == 0){
     return -1;
   }
-
+  np->trace_mask = p->trace_mask;
   // Copy user memory from parent to child.
   if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
     freeproc(np);
@@ -692,4 +692,18 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+uint64
+nproc(void)
+{
+  struct proc* p;
+  int count = 0;
+
+  for(p = proc; p < &proc[NPROC]; p++){
+    if(p->state != UNUSED){
+      count++;
+    }
+  }
+  return count;
 }
