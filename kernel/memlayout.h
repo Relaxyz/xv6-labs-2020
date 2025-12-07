@@ -18,20 +18,20 @@
 // PHYSTOP -- end RAM used by the kernel
 
 // qemu puts UART registers here in physical memory.
-#define UART0 0x10000000L
+#define UART0 0x10000000L // L means data type long 
 #define UART0_IRQ 10
 
 // virtio mmio interface
-#define VIRTIO0 0x10001000
-#define VIRTIO0_IRQ 1
+#define VIRTIO0 0x10001000  // virtual I/O disk
+#define VIRTIO0_IRQ 1 // IRQ Interrupt ReQuest
 
 // local interrupt controller, which contains the timer.
-#define CLINT 0x2000000L
+#define CLINT 0x2000000L  //   core-local interrupt
 #define CLINT_MTIMECMP(hartid) (CLINT + 0x4000 + 8*(hartid))
 #define CLINT_MTIME (CLINT + 0xBFF8) // cycles since boot.
 
 // qemu puts programmable interrupt controller here.
-#define PLIC 0x0c000000L
+#define PLIC 0x0c000000L   // Platform-Level interrupt
 #define PLIC_PRIORITY (PLIC + 0x0)
 #define PLIC_PENDING (PLIC + 0x1000)
 #define PLIC_MENABLE(hart) (PLIC + 0x2000 + (hart)*0x100)
@@ -45,15 +45,15 @@
 // for use by the kernel and user pages
 // from physical address 0x80000000 to PHYSTOP.
 #define KERNBASE 0x80000000L
-#define PHYSTOP (KERNBASE + 128*1024*1024)
+#define PHYSTOP (KERNBASE + 128*1024*1024) // kernel space 128KB
 
 // map the trampoline page to the highest address,
 // in both user and kernel space.
-#define TRAMPOLINE (MAXVA - PGSIZE)
+#define TRAMPOLINE (MAXVA - PGSIZE)  // trampoline address to enter kernel 
 
 // map kernel stacks beneath the trampoline,
 // each surrounded by invalid guard pages.
-#define KSTACK(p) (TRAMPOLINE - ((p)+1)* 2*PGSIZE)
+#define KSTACK(p) (TRAMPOLINE - ((p)+1)* 2*PGSIZE) //kernel stack to save systemcall chain
 
 // User memory layout.
 // Address zero first:
@@ -63,5 +63,5 @@
 //   expandable heap
 //   ...
 //   TRAPFRAME (p->trapframe, used by the trampoline)
-//   TRAMPOLINE (the same page as in the kernel)
-#define TRAPFRAME (TRAMPOLINE - PGSIZE)
+//   TRAMPOLINE (the same page as in the kernel) 
+#define TRAPFRAME (TRAMPOLINE - PGSIZE)  // reg snapshot to save register state
