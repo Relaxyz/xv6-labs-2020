@@ -1,0 +1,7 @@
+    What is the primary purpose of using a multi-level hierarchical page table structure (like x86's 4-level page tables) instead of a linear page table, and what are the key advantages and potential drawbacks of this approach?
+    Explain how the Translation Lookaside Buffer (TLB) enhances memory access performance. How does the TLB know when its entries are stale, and what actions must the operating system take during a context switch to maintain memory consistency?
+
+    In a 64-bit architecture like RISC-V or x86-64, why don't we use all 64 bits for virtual addressing? What are the practical implications of having a 39-bit or 48-bit virtual address space instead?
+
+    Compare and contrast the concepts of page-based virtual memory and segmentation. Why have modern operating systems largely moved away from segmentation in favor of pure paging systems?
+    When implementing copy-on-write (COW) for process forking, how does the operating system use page table permissions to detect write attempts to shared pages, and what sequence of events occurs when a COW page fault is triggered?

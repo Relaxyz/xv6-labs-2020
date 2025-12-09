@@ -333,6 +333,20 @@ uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
   return newsz;
 }
 
+uint64
+kvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
+{
+  if(newsz >= oldsz)
+    return oldsz;
+
+  if(PGROUNDUP(newsz) < PGROUNDUP(oldsz)){
+    int npages = (PGROUNDUP(oldsz) - PGROUNDUP(newsz)) / PGSIZE;
+    uvmunmap(pagetable, PGROUNDUP(newsz), npages, 0);
+  }
+
+  return newsz;
+}
+
 // Recursively free page-table pages.
 // All leaf mappings must already have been removed.
 void
@@ -459,6 +473,7 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 int
 copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 {
+  /*
   uint64 n, va0, pa0;
 
   while(len > 0){
@@ -476,6 +491,8 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
     srcva = va0 + PGSIZE;
   }
   return 0;
+  */
+  return copyin_new(pagetable, dst, srcva, len);
 }
 
 // Copy a null-terminated string from user to kernel.
@@ -485,6 +502,7 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 int
 copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 {
+  /*
   uint64 n, va0, pa0;
   int got_null = 0;
 
@@ -519,4 +537,33 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+  */
+  return copyinstr_new(pagetable, dst, srcva, max);
+}
+
+int 
+kvm_copy_mappings(pagetable_t upgtb, pagetable_t kpgtb, uint64 start, uint64 sz){
+  pte_t* pte;
+  uint64 end = start + sz;
+  start = PGROUNDDOWN(start);
+  for(; start < end; start += PGSIZE){
+    if((pte = walk(upgtb, start, 0)) == 0){
+      panic("kvm_copy_mappings: pte should exist");
+    }
+    if((*pte & PTE_V) == 0){
+      panic("kvm_copy_mappings: pte not present");
+    }
+    uint64 pa = PTE2PA(*pte);
+    uint flags = PTE_FLAGS(*pte) & (~PTE_U);
+
+    pte_t * kpte = walk(kpgtb, start, 0);
+    if(kpte && (*kpte & PTE_V)){
+      continue;
+    }
+    if(mappages(kpgtb, start, PGSIZE, pa, flags) != 0){
+      uvmunmap(kpgtb, 0, start / PGSIZE, 0);
+      return -1;
+    }
+  }
+  return 0;
 }
