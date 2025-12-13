@@ -69,7 +69,7 @@ proc_kpt_init()
 
   kvmmap(proc_kpagetable, VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
 
-  kvmmap(proc_kpagetable, CLINT, CLINT, 0x10000, PTE_R | PTE_W);
+  // kvmmap(proc_kpagetable, CLINT, CLINT, 0x10000, PTE_R | PTE_W);
 
   kvmmap(proc_kpagetable, PLIC, PLIC, 0x400000, PTE_R | PTE_W);
 
@@ -558,6 +558,7 @@ kvm_copy_mappings(pagetable_t upgtb, pagetable_t kpgtb, uint64 start, uint64 sz)
 
     pte_t * kpte = walk(kpgtb, start, 0);
     if(kpte && (*kpte & PTE_V)){
+      printf("Encounter remap: pte %p pa %p\n", *kpte, PTE2PA(*kpte));
       continue;
     }
     if(mappages(kpgtb, start, PGSIZE, pa, flags) != 0){

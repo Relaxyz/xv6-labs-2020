@@ -127,13 +127,17 @@ found:
     release(&p->lock);
     return 0;
   }
+  // printf("after proc_kpt_init:\n");
+  // vmprint(p->kpagetable);
+
   char *pa = kalloc();
   if(pa == 0){
     freeproc(p);
     release(&p->lock);
     return 0;
   }
-  uint64 va = KSTACK((int)(p- proc));
+  // uint64 va = KSTACK((int)(p- proc));
+  uint64 va = KSTACK((int)0);
   kvmmap(p->kpagetable, va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
   p->kstack = va;
 
