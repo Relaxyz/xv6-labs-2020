@@ -1,0 +1,12 @@
+1.Arguments are passed in regs a0-a7, a2 holds 13.
+2.No function is emitted because the compiler inlined f and g. 
+3.The address of prints is ra + 1536, 0x630.
+4.After jalr, ra contains 0x38.
+5.Output is HE110 World.
+printf("H%x Wo%s", 57616, &i); 
+%x print hex integer without 0x, so 57616 = E110
+%s print the 4 bytes of i in memory as string, i = 0x00646472, so it is stored in memory as 72 6c 64 00(small end sequence).And then will print "rld" according to ASCII table.
+6.printf("x=%d y=%d", 3);
+Terminal print x=3 y=5221
+C code doesn't give value to y, so CPU continue to find second value from reg a2, and it get 5221, the value left over a0 by latest a2 operation.
+
