@@ -15,6 +15,26 @@ extern char etext[];  // kernel.ld sets this to end of kernel code.
 
 extern char trampoline[]; // trampoline.S
 
+void vmprint(pagetable_t pagetable){
+  printf("page table: %p\n", pagetable);
+  walkprint(pagetable, 2);
+}
+
+void walkprint(pagetable_t pagetable, int level){
+  for(int i = 0; i < 512; i++){
+    pte_t *pte = &pagetable[i];
+    if(*pte & PTE_V){
+      if(level == 2) printf("..");
+      else if(level == 1) printf(".. ..");
+      else if(level == 0) printf(".. .. ..");
+      else printf("invalid level!\n");
+      printf("%d: pte %p pa %p\n", i, *pte, PTE2PA(*pte));
+      if(level > 0 && (*pte & (PTE_R|PTE_W|PTE_X))  == 0)
+        walkprint((pagetable_t)PTE2PA(*pte), level-1);
+    }
+  }
+}
+
 /*
  * create a direct-map page table for the kernel.
  */
@@ -183,7 +203,11 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
     if((pte = walk(pagetable, a, 0)) == 0)
       panic("uvmunmap: walk");
     if((*pte & PTE_V) == 0)
-      panic("uvmunmap: not mapped");
+    {
+      // printf("va=%p pte%p\n", va, pte);
+      // panic("uvmunmap: not mapped");
+      continue;
+    }
     if(PTE_FLAGS(*pte) == PTE_V)
       panic("uvmunmap: not a leaf");
     if(do_free){
