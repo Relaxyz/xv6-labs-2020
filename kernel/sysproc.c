@@ -41,15 +41,26 @@ sys_wait(void)
 uint64
 sys_sbrk(void)
 {
-  int addr;
   int n;
+  struct proc *p = myproc();
 
   if(argint(0, &n) < 0)
     return -1;
-  addr = myproc()->sz;
-  myproc()->sz += n;
-  // if(growproc(n) < 0)
-  //   return -1;
+
+  uint64 addr = p->sz;
+
+  if(n < 0) {
+    // 释放内存：必须 unmap 超出新 sz 的区域
+    if(addr + n < 0)
+      return -1;
+    // 调用 uvmdealloc 来 unmap [addr + n, addr) 区域
+    p->sz = uvmdealloc(p->pagetable, addr, addr + n);
+  } else {
+    // 分配：仅扩展 sz，lazy 分配在 page fault 时进行
+    if(addr + n >= TRAPFRAME) return -1;
+    p->sz = addr + n;
+  }
+
   return addr;
 }
 
