@@ -386,7 +386,7 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
     va0 = PGROUNDDOWN(dstva);
     pa0 = walkaddr(pagetable, va0);
     if(pa0 == 0){
-      if(va0 >= p->sz){
+      if(va0 >= p->sz || va0 <= PGROUNDDOWN(p->trapframe->sp) + PGSIZE){
         printf("copyout(): cross p->sz\n");
         // p->killed = 1;
         return -1;

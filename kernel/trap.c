@@ -80,7 +80,7 @@ usertrap(void)
       // printf("usertrap(): cross p->sz\n");
       p->killed = 1;
     } 
-    else if(va < PGROUNDDOWN(p->trapframe->sp))
+    else if(va < PGROUNDDOWN(p->trapframe->sp) + PGSIZE)
     {
       // printf("usertrap(): below stack, killing pid = %d\n", p->pid);
       p->killed = 1;
