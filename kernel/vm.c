@@ -5,6 +5,7 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
+#include "proc.h"
 
 /*
  * the kernel's page table.
@@ -311,7 +312,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
+  // char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
@@ -319,14 +320,12 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
+    *pte = (*pte & ~PTE_W) | PTE_COW;
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
+    if(mappages(new, i, PGSIZE, (uint64)pa, flags) != 0){
       goto err;
     }
+    kref_inc((void*)pa);
   }
   return 0;
 
@@ -358,6 +357,8 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
+    if(uvmcheckcowpage(va0))
+      uvmcowcopy(va0);
     pa0 = walkaddr(pagetable, va0);
     if(pa0 == 0)
       return -1;
@@ -439,4 +440,38 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+int 
+uvmcheckcowpage(uint64 va)
+{
+  pte_t *pte;
+  struct proc *p = myproc();
+
+  return va < p->sz
+    && ((pte = walk(p->pagetable, va, 0)) != 0)
+    && (*pte & PTE_V)
+    && (*pte & PTE_COW);
+}
+
+int
+uvmcowcopy(uint64 va)
+{
+  pte_t *pte;
+  struct proc *p = myproc();
+
+  if((pte = walk(p->pagetable, va, 0)) == 0)
+    panic("uvmcowcopy: walk");
+  
+  uint64 pa = PTE2PA(*pte);
+  uint64 newpa = (uint64)kref_cow_page((void*)pa);
+  if(newpa == 0)
+    return -1;
+  
+  uint64 flags = (PTE_FLAGS(*pte) | PTE_W) & ~PTE_COW;
+  uvmunmap(p->pagetable, PGROUNDDOWN(va), 1, 0);
+  if(mappages(p->pagetable, va, 1, newpa, flags) == -1){
+    panic("uvmcowcopy: mappages");
+  }
+  return 0;
 }
