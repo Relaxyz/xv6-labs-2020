@@ -35,6 +35,7 @@ kinit()
   initlock(&kmem.lock, "kmem");
   initlock(&pgreflock, "pgref"); // 初始化锁
   freerange(end, (void*)PHYSTOP);
+  // printf("PGREF_MAX_ENTRYS: %d\t pgref[0]:%d\t pgref[10]:%d\n", PGREF_MAX_ENTRYS, pgref[0], pgref[10]);
 }
 
 void
@@ -57,7 +58,7 @@ kfree(void *pa)
 
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
-  if (PA2PGREF(pa) <= 0) 
+  if (PA2PGREF(pa) < 0) 
     panic("kref underflow");
   acquire(&pgreflock);
   if(--PA2PGREF(pa) <= 0){
@@ -97,9 +98,7 @@ kalloc(void)
   if(r)
   {
     memset((char*)r, 5, PGSIZE); // fill with junk
-    acquire(&pgreflock);
     PA2PGREF(r) = 1;
-    release(&pgreflock);
   }
   return (void*)r;
 }
