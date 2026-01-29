@@ -484,3 +484,103 @@ sys_pipe(void)
   }
   return 0;
 }
+
+//void *mmap(void *addr, int length, int prot, int flags, int fd, int offset);
+uint64
+sys_mmap(void)
+{
+  uint64 failure = (uint64)-1;
+  struct proc* p = myproc();
+  uint64 addr;
+  int length, prot, flags, fd, offset;
+  struct file* f;
+
+  if(argaddr(0, &addr) < 0 || argint(1, &length) < 0 || argint(2, &prot) < 0
+    || argint(3, &flags) < 0 || argfd(4, &fd, &f) < 0 || argint(5, &offset) < 0)
+    return failure;
+
+  length = PGROUNDUP(length);
+  if(MAXVA - length < p->sz)
+    return failure;
+  if(!f->readable && (prot & PROT_READ))
+    return failure;
+  if(!f->writable && (prot & PROT_WRITE) && (flags == MAP_SHARED))
+    return failure;
+  
+  for(int i = 0; i < NVMA; i++){
+    struct vma* vma = &p->vmas[i];
+    if(vma->valid == 0){
+      vma->valid = 1;
+      vma->addr = p->sz;
+      vma->length = length;
+      p->sz += length;
+      vma->prot = prot;
+      vma->flags = flags;
+      vma->fd = fd;
+      vma->f =f;
+      filedup(f);
+      vma->offset = offset;
+      return vma->addr;
+    }
+  }
+
+  return failure;
+}
+
+//int munmap(void *addr, int length);
+uint64
+sys_munmap(void)
+{
+  uint64 addr;
+  int length;
+  if(argaddr(0, &addr) < 0 || argint(1, &length) < 0)
+    return -1;
+
+  struct proc *p = myproc();
+  struct vma *v = 0;
+
+  // 1. 寻找对应的 VMA
+  for(int i = 0; i < 16; i++) {
+    if(p->vmas[i].valid && addr >= p->vmas[i].addr && addr < p->vmas[i].addr + p->vmas[i].length) {
+      v = &p->vmas[i];
+      break;
+    }
+  }
+  if(!v) return -1;
+
+  // 2. 逐页处理：写回 + 取消映射
+  for(uint64 a = addr; a < addr + length; a += PGSIZE) {
+    pte_t *pte = walk(p->pagetable, a, 0); // 找到页表项
+    
+    if(pte && (*pte & PTE_V)) { // 只有映射过的页才处理
+      // 如果是 SHARED 且页面被修改过 (PTE_D 表示脏页)
+      // 注意：实验手册说不检查 PTE_D 也可以，但必须保证页是有效的
+      if((v->flags & MAP_SHARED)) {
+        begin_op();
+        ilock(v->f->ip);
+        // 计算该页在文件中的偏移量
+        uint64 file_offset = v->offset + (a - v->addr);
+        // 将这一页数据写回文件 (1 代表来自用户空间地址 a)
+        writei(v->f->ip, 1, a, file_offset, PGSIZE);
+        iunlock(v->f->ip);
+        end_op();
+      }
+      // 取消映射并释放物理页
+      uvmunmap(p->pagetable, a, 1, 1);
+    }
+  }
+
+  // 3. 更新 VMA 账本 (你之前的逻辑基本正确)
+  if(addr == v->addr && length == v->length) {
+    fileclose(v->f);
+    v->valid = 0;
+  } else if(addr == v->addr) {
+    v->addr += length;
+    v->length -= length;
+    v->offset += length;
+  } else {
+    v->length -= length;
+  }
+
+  return 0;
+}

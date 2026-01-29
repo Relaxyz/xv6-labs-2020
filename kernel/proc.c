@@ -3,6 +3,10 @@
 #include "memlayout.h"
 #include "riscv.h"
 #include "spinlock.h"
+#include "sleeplock.h"
+#include "fs.h"
+#include "file.h"
+#include "fcntl.h"
 #include "proc.h"
 #include "defs.h"
 
@@ -113,6 +117,10 @@ allocproc(void)
 
 found:
   p->pid = allocpid();
+
+  for(int i = 0; i < NVMA; i++){
+    p->vmas[i].valid = 0;
+  }
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -282,6 +290,13 @@ fork(void)
   }
   np->sz = p->sz;
 
+  for(int i = 0; i < NVMA; i++){
+    if(p->vmas[i].valid){
+      np->vmas[i] = p->vmas[i];
+      filedup(np->vmas[i].f);
+    }
+  }
+
   np->parent = p;
 
   // copy saved user registers.
@@ -343,6 +358,31 @@ exit(int status)
 
   if(p == initproc)
     panic("init exiting");
+  
+  for(int i = 0; i < 16; i++) {
+    struct vma *v = &p->vmas[i];
+    if(v->valid) {
+      // 遍历 VMA 范围内的每一页进行写回和卸载
+      for(uint64 a = v->addr; a < v->addr + v->length; a += PGSIZE) {
+        pte_t *pte = walk(p->pagetable, a, 0);
+        if(pte && (*pte & PTE_V)) {
+          // 如果是共享且脏页，写回磁盘
+          if((v->flags & MAP_SHARED)) {
+            begin_op();
+            ilock(v->f->ip);
+            writei(v->f->ip, 1, a, v->offset + (a - v->addr), PGSIZE);
+            iunlock(v->f->ip);
+            end_op();
+          }
+          // 取消映射并释放内存
+          uvmunmap(p->pagetable, a, 1, 1);
+        }
+      }
+      // 此时才减少文件的引用计数
+      fileclose(v->f);
+      v->valid = 0;
+    }
+  }  
 
   // Close all open files.
   for(int fd = 0; fd < NOFILE; fd++){
